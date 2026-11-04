@@ -26,7 +26,7 @@ export type KartaKandydata = {
   podsumowanie: string;
   doswiadczenie: string[];
   mocne_strony: MocnaStrona[];
-  sygnaly_ostrzegawcze: SygnalOstrzegawcze[];
+  sygnaly_ostrzegawcze: SygnalOstrzegawczy[];
   motywacja: Motywacja;
   oceny: OcenaKompetencji[];
   pytania_followup: string[];

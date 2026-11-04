@@ -14,11 +14,11 @@ const opcjeDecyzji: { wartosc: Decyzja; etykieta: string; wariant: "default" | "
   { wartosc: "odrzucony", etykieta: "Odrzucony", wariant: "destructive" },
 ];
 
-function Sekcja({ tytul, dzieci }: { tytul: string; dzieci: ReactNode }) {
+function Sekcja({ tytul, children }: { tytul: string; children: ReactNode }) {
   return (
     <section className="space-y-2">
       <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">{tytul}</h3>
-      {dzieci}
+      {children}
     </section>
   );
 }
