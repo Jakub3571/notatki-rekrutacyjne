@@ -26,9 +26,15 @@ function Sekcja({ tytul, children }: { tytul: string; children: ReactNode }) {
 export function KartaKandydataView({
   karta,
   onZmianaDecyzji,
+  onZapisz,
+  onUsun,
+  zapisywanie = false,
 }: {
   karta: KartaKandydata;
   onZmianaDecyzji: (decyzja: Decyzja) => void;
+  onZapisz?: () => void;
+  onUsun?: () => void;
+  zapisywanie?: boolean;
 }) {
   const [skopiowano, setSkopiowano] = useState(false);
 
@@ -128,9 +134,21 @@ export function KartaKandydataView({
           ))}
         </div>
 
-        <Button onClick={kopiujNotatke} className="w-full sm:w-auto">
-          {skopiowano ? "Skopiowano do schowka!" : "Kopiuj notatkę do ATS"}
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button onClick={kopiujNotatke} className="w-full sm:w-auto">
+            {skopiowano ? "Skopiowano do schowka!" : "Kopiuj notatkę do ATS"}
+          </Button>
+          {onZapisz && (
+            <Button onClick={onZapisz} disabled={zapisywanie} variant="secondary" className="w-full sm:w-auto">
+              {zapisywanie ? "Zapisywanie…" : "Zapisz do biblioteki"}
+            </Button>
+          )}
+          {onUsun && (
+            <Button onClick={onUsun} variant="destructive" className="w-full sm:w-auto">
+              Usuń kartę
+            </Button>
+          )}
+        </div>
       </CardContent>
     </Card>
   );

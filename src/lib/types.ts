@@ -32,3 +32,14 @@ export type KartaKandydata = {
   pytania_followup: string[];
   decyzja: Decyzja;
 };
+
+export type WierszKarty = {
+  id: string;
+  created_at: string;
+  user_id: string;
+  stanowisko: string;
+  kandydat: string;
+  transkrypcja: string;
+  karta: KartaKandydata;
+  decyzja: string;
+};
