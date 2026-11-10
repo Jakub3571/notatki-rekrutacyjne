@@ -19,6 +19,7 @@ export default function StronaGlowna() {
   const [transkrypcja, setTranskrypcja] = useState("");
   const [laduje, setLaduje] = useState(false);
   const [blad, setBlad] = useState("");
+  const [zgoda, setZgoda] = useState(false);
   const router = useRouter();
 
   async function generujKarte(event: FormEvent<HTMLFormElement>) {
@@ -121,8 +122,21 @@ export default function StronaGlowna() {
                 placeholder="Wklej tutaj transkrypcję rozmowy (np. z Google Meet, Otter.ai)…"
               />
             </div>
+            <div className="flex items-start gap-2">
+              <input
+                type="checkbox"
+                id="zgoda"
+                required
+                checked={zgoda}
+                onChange={(e) => setZgoda(e.target.checked)}
+                className="mt-1 h-4 w-4"
+              />
+              <Label htmlFor="zgoda" className="font-normal leading-relaxed">
+                Potwierdzam, że kandydat wyraził zgodę na nagrywanie i transkrypcję rozmowy rekrutacyjnej (art. 267 k.k.).
+              </Label>
+            </div>
             <div className="flex flex-wrap gap-2">
-              <Button type="submit" disabled={laduje} className="w-full sm:w-auto">
+              <Button type="submit" disabled={laduje || !zgoda} className="w-full sm:w-auto">
                 {laduje ? "Generowanie…" : "Generuj kartę kandydata"}
               </Button>
               <Button type="button" variant="outline" onClick={uzyjPrzykladu} disabled={laduje}>
