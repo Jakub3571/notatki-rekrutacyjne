@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import { Naglowek } from "@/components/naglowek";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -11,7 +12,10 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (
     <html lang="pl">
-      <body className="min-h-screen bg-background font-sans text-foreground antialiased">{children}</body>
+      <body className="min-h-screen bg-background font-sans text-foreground antialiased">
+        <Naglowek />
+        {children}
+      </body>
     </html>
   );
 }
