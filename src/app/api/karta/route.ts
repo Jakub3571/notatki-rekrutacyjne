@@ -36,9 +36,10 @@ export async function POST(request: Request) {
       );
     }
 
+    const model = process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-6";
     const anthropic = new Anthropic();
     const odpowiedz = await anthropic.messages.create({
-      model: "claude-sonnet-4-5",
+      model,
       max_tokens: 4096,
       system: PROMPT_SYSTEM,
       messages: [
