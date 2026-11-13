@@ -10,7 +10,7 @@ export default function PolitykaPage() {
       <section className="space-y-2">
         <h2 className="font-semibold">1. Administrator</h2>
         <p className="text-sm leading-relaxed text-muted-foreground">
-          Administratorem danych osobowych jest [TWOJE IMIĘ I NAZWISKO / NAZWA FIRMY], e-mail: [TWÓJ E-MAIL].
+          Administratorem danych osobowych jest Jakub Ciszewski, e-mail: jakub98.cisz@gmail.com.
           Nie wyznaczono inspektora ochrony danych.
         </p>
       </section>
@@ -51,8 +51,8 @@ export default function PolitykaPage() {
       <section className="space-y-2">
         <h2 className="font-semibold\">6. Twoje prawa</h2>
         <p className="text-sm leading-relaxed text-muted-foreground">
-          Dostęp, sprostowanie, usunięcie („prawo do bycia zapomnianym"), ograniczenie, przenoszenie, sprzeciw,
-          skarga do Prezesa UODO. Kontakt: [TWÓJ E-MAIL].
+          Dostęp, sprostowanie, usunięcie („prawo do bycia zapomnianym”), ograniczenie, przenoszenie, sprzeciw,
+          skarga do Prezesa UODO. Kontakt: jakub98.cisz@gmail.com.
         </p>
       </section>
 

@@ -32,8 +32,15 @@ export default function StronaGlowna() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ transkrypcja }),
       });
-      const dane = await odpowiedz.json();
-      if (!odpowiedz.ok) throw new Error(dane.blad ?? "Nie udało się wygenerować karty");
+      const tekst = await odpowiedz.text();
+      let dane: { karta?: KartaKandydata; blad?: string } = {};
+      try {
+        dane = tekst ? JSON.parse(tekst) : {};
+      } catch {
+        dane = {};
+      }
+      if (!odpowiedz.ok) throw new Error(dane.blad ?? `Błąd serwera (HTTP ${odpowiedz.status})`);
+      if (!dane.karta) throw new Error("Serwer nie zwrócił karty");
       setKarta({ ...dane.karta, decyzja: "" });
     } catch (e) {
       setBlad(e instanceof Error ? e.message : "Wystąpił nieoczekiwany błąd");
