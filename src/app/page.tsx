@@ -24,6 +24,7 @@ export default function StronaGlowna() {
   const [komunikat, setKomunikat] = useState("");
   const [plik, setPlik] = useState<File | null>(null);
   const [transkrybuje, setTranskrybuje] = useState(false);
+  const [zapisanaId, setZapisanaId] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/limit")
@@ -54,8 +55,34 @@ export default function StronaGlowna() {
       }
       if (!odpowiedz.ok) throw new Error(dane.blad ?? `Błąd serwera (HTTP ${odpowiedz.status})`);
       if (!dane.karta) throw new Error("Serwer nie zwrócił karty");
-      setKarta({ ...dane.karta, decyzja: "" });
+      const nowaKarta = { ...dane.karta, decyzja: "" as Decyzja };
+      setKarta(nowaKarta);
       if (typeof dane.pozostalo === "number") setPozostało(dane.pozostalo);
+
+      const supabase = createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (user) {
+        const { data: wiersz, error } = await supabase
+          .from("karty")
+          .insert({
+            user_id: user.id,
+            stanowisko,
+            kandydat,
+            transkrypcja,
+            karta: nowaKarta,
+            decyzja: "",
+          })
+          .select("id")
+          .single();
+        if (!error && wiersz) setZapisanaId(wiersz.id);
+      }
+      setStanowisko("");
+      setKandydat("");
+      setTranskrypcja("");
+      setZgoda(false);
+      setKomunikat("Karta wygenerowana i automatycznie zapisana w bibliotece — odświeżenie strony jej nie zgubi.");
     } catch (e) {
       setBlad(e instanceof Error ? e.message : "Wystąpił nieoczekiwany błąd");
     } finally {
@@ -95,38 +122,34 @@ export default function StronaGlowna() {
     }
   }
 
-  async function zapiszDoBiblioteki() {
-    if (!karta) return;
-    setLaduje(true);
-    setBlad("");
-    const supabase = createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) {
-      setBlad("Sesja wygasła — zaloguj się ponownie");
-      setLaduje(false);
-      return;
-    }
-    const { error } = await supabase.from("karty").insert({
-      user_id: user.id,
-      stanowisko,
-      kandydat,
-      transkrypcja,
-      karta,
-      decyzja: karta.decyzja,
+  function zmianaDecyzji(decyzja: Decyzja) {
+    setKarta((k) => {
+      if (!k) return k;
+      const nowa = { ...k, decyzja };
+      if (zapisanaId) {
+        const supabase = createClient();
+        supabase.from("karty").update({ decyzja, karta: nowa }).eq("id", zapisanaId);
+      }
+      return nowa;
     });
-    setLaduje(false);
-    if (error) {
-      setBlad(error.message);
-      return;
+  }
+
+  function zapiszZmiany(nowa: KartaKandydata) {
+    setKarta(nowa);
+    if (zapisanaId) {
+      const supabase = createClient();
+      supabase.from("karty").update({ karta: nowa, decyzja: nowa.decyzja }).eq("id", zapisanaId);
     }
+  }
+
+  async function usunKarte() {
+    if (!zapisanaId) return;
+    if (!window.confirm("Usunąć tę kartę z biblioteki?")) return;
+    const supabase = createClient();
+    await supabase.from("karty").delete().eq("id", zapisanaId);
     setKarta(null);
-    setStanowisko("");
-    setKandydat("");
-    setTranskrypcja("");
-    setZgoda(false);
-    setKomunikat("Zapisano do biblioteki! Formularz wyczyszczony — wprowadź kolejną rozmowę.");
+    setZapisanaId(null);
+    setKomunikat("Karta usunięta.");
   }
 
   return (
@@ -236,11 +259,10 @@ export default function StronaGlowna() {
       {karta && (
         <KartaKandydataView
           karta={karta}
-          onZmianaDecyzji={(decyzja: Decyzja) => setKarta({ ...karta, decyzja })}
-          onZapisz={zapiszDoBiblioteki}
-          zapisywanie={laduje}
+          onZmianaDecyzji={zmianaDecyzji}
+          onUsun={usunKarte}
           edytowalna
-          onZapiszZmiany={(nowa) => setKarta(nowa)}
+          onZapiszZmiany={zapiszZmiany}
         />
       )}
     </main>
