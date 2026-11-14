@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -20,7 +19,21 @@ export default function StronaGlowna() {
   const [laduje, setLaduje] = useState(false);
   const [blad, setBlad] = useState("");
   const [zgoda, setZgoda] = useState(false);
-  const router = useRouter();
+  const [pozostalo, setPozostało] = useState<number | null>(null);
+  const [limit, setLimit] = useState(10);
+  const [komunikat, setKomunikat] = useState("");
+  const [plik, setPlik] = useState<File | null>(null);
+  const [transkrybuje, setTranskrybuje] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/limit")
+      .then((r) => r.json())
+      .then((d) => {
+        setPozostało(typeof d.pozostalo === "number" ? d.pozostalo : null);
+        setLimit(typeof d.limit === "number" ? d.limit : 10);
+      })
+      .catch(() => setPozostało(null));
+  }, []);
 
   async function generujKarte(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -33,7 +46,7 @@ export default function StronaGlowna() {
         body: JSON.stringify({ transkrypcja }),
       });
       const tekst = await odpowiedz.text();
-      let dane: { karta?: KartaKandydata; blad?: string } = {};
+      let dane: { karta?: KartaKandydata; blad?: string; pozostalo?: number } = {};
       try {
         dane = tekst ? JSON.parse(tekst) : {};
       } catch {
@@ -42,6 +55,7 @@ export default function StronaGlowna() {
       if (!odpowiedz.ok) throw new Error(dane.blad ?? `Błąd serwera (HTTP ${odpowiedz.status})`);
       if (!dane.karta) throw new Error("Serwer nie zwrócił karty");
       setKarta({ ...dane.karta, decyzja: "" });
+      if (typeof dane.pozostalo === "number") setPozostało(dane.pozostalo);
     } catch (e) {
       setBlad(e instanceof Error ? e.message : "Wystąpił nieoczekiwany błąd");
     } finally {
@@ -52,6 +66,33 @@ export default function StronaGlowna() {
   function uzyjPrzykladu() {
     setKarta({ ...przykladowaKarta, decyzja: "" });
     setBlad("");
+  }
+
+  async function wgrajNagranie() {
+    if (!plik) return;
+    setTranskrybuje(true);
+    setBlad("");
+    setKomunikat("");
+    try {
+      const fd = new FormData();
+      fd.append("plik", plik);
+      const odpowiedz = await fetch("/api/transkrypcja", { method: "POST", body: fd });
+      const tekst = await odpowiedz.text();
+      let dane: { transkrypcja?: string; blad?: string } = {};
+      try {
+        dane = tekst ? JSON.parse(tekst) : {};
+      } catch {
+        dane = {};
+      }
+      if (!odpowiedz.ok) throw new Error(dane.blad ?? `Błąd transkrypcji (HTTP ${odpowiedz.status})`);
+      if (!dane.transkrypcja) throw new Error("Pusta transkrypcja");
+      setTranskrypcja(dane.transkrypcja);
+      setKomunikat("Transkrypcja gotowa — sprawdź oznaczenia REKRUTER/KANDYDAT i kliknij „Generuj kartę”.");
+    } catch (e) {
+      setBlad(e instanceof Error ? e.message : "Błąd transkrypcji");
+    } finally {
+      setTranskrybuje(false);
+    }
   }
 
   async function zapiszDoBiblioteki() {
@@ -80,7 +121,12 @@ export default function StronaGlowna() {
       setBlad(error.message);
       return;
     }
-    router.push("/biblioteka");
+    setKarta(null);
+    setStanowisko("");
+    setKandydat("");
+    setTranskrypcja("");
+    setZgoda(false);
+    setKomunikat("Zapisano do biblioteki! Formularz wyczyszczony — wprowadź kolejną rozmowę.");
   }
 
   return (
@@ -129,6 +175,32 @@ export default function StronaGlowna() {
                 placeholder="Wklej tutaj transkrypcję rozmowy (np. z Google Meet, Otter.ai)…"
               />
             </div>
+            <div className="space-y-2">
+              <Label>Albo wgraj nagranie (mp3, m4a, wav, mp4 — max 100 MB)</Label>
+              <input
+                id="plik"
+                type="file"
+                accept="audio/*,video/*"
+                onChange={(e) => setPlik(e.target.files?.[0] ?? null)}
+                className="hidden"
+              />
+              <label
+                htmlFor="plik"
+                className="flex cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed p-6 text-center transition-colors hover:border-primary hover:bg-muted"
+              >
+                <span className="text-sm font-medium">
+                  {plik ? plik.name : "Kliknij, aby wybrać nagranie"}
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  {plik ? `${(plik.size / 1024 / 1024).toFixed(1)} MB` : "mp3, m4a, wav, mp4 — max 100 MB"}
+                </span>
+              </label>
+              <div>
+                <Button type="button" variant="outline" onClick={wgrajNagranie} disabled={!plik || transkrybuje}>
+                  {transkrybuje ? "Transkrypcja…" : "Transkrybuj nagranie"}
+                </Button>
+              </div>
+            </div>
             <div className="flex items-start gap-2">
               <input
                 type="checkbox"
@@ -142,15 +214,21 @@ export default function StronaGlowna() {
                 Potwierdzam, że kandydat wyraził zgodę na nagrywanie i transkrypcję rozmowy rekrutacyjnej (art. 267 k.k.).
               </Label>
             </div>
-            <div className="flex flex-wrap gap-2">
-              <Button type="submit" disabled={laduje || !zgoda} className="w-full sm:w-auto">
+            <div className="flex flex-wrap items-center gap-2">
+              <Button type="submit" disabled={laduje || !zgoda || pozostalo === 0} className="w-full sm:w-auto">
                 {laduje ? "Generowanie…" : "Generuj kartę kandydata"}
               </Button>
+              {pozostalo !== null && (
+                <span className={pozostalo === 0 ? "text-sm font-medium text-destructive" : "text-sm text-muted-foreground"}>
+                  Pozostało generowań: {pozostalo}/{limit}
+                </span>
+              )}
               <Button type="button" variant="outline" onClick={uzyjPrzykladu} disabled={laduje}>
                 Wstaw przykład (test bez AI)
               </Button>
             </div>
             {blad && <p className="text-sm text-destructive">{blad}</p>}
+            {komunikat && <p className="text-sm font-medium text-green-600">{komunikat}</p>}
           </form>
         </CardContent>
       </Card>
@@ -161,6 +239,8 @@ export default function StronaGlowna() {
           onZmianaDecyzji={(decyzja: Decyzja) => setKarta({ ...karta, decyzja })}
           onZapisz={zapiszDoBiblioteki}
           zapisywanie={laduje}
+          edytowalna
+          onZapiszZmiany={(nowa) => setKarta(nowa)}
         />
       )}
     </main>
