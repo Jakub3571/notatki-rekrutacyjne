@@ -57,6 +57,21 @@ export default function BibliotekaPage() {
     return true;
   });
 
+  async function zmienDecyzje(wiersz: WierszKarty, decyzja: Decyzja) {
+    const supabase = createClient();
+    const nowaKarta = { ...wiersz.karta, decyzja };
+    const { error } = await supabase
+      .from("karty")
+      .update({ decyzja, karta: nowaKarta })
+      .eq("id", wiersz.id);
+    if (error) {
+      setBlad(error.message);
+      return;
+    }
+    setKarty(karty.map((k) => (k.id === wiersz.id ? { ...k, decyzja, karta: nowaKarta } : k)));
+    if (wybrana?.id === wiersz.id) setWybrana({ ...wybrana, decyzja, karta: nowaKarta });
+  }
+
   async function zapiszZmianyKarty(wiersz: WierszKarty, nowa: KartaKandydata) {
     const supabase = createClient();
     const { error } = await supabase
@@ -166,7 +181,7 @@ export default function BibliotekaPage() {
                 </Badge>
               </span>
             </button>
-                        {wybrana?.id === k.id && (
+            {wybrana?.id === k.id && (
               <div className="mt-2">
                 <KartaKandydataView
                   karta={k.karta}
