@@ -1,240 +1,200 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
-import { Textarea } from "@/components/ui/textarea";
-import type { Decyzja, KartaKandydata } from "@/lib/types";
-import { formatujNotatke } from "@/lib/format-notatki";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { KartaKandydataView } from "@/components/karta-kandydata";
+import { createClient } from "@/lib/supabase/client";
+import type { Decyzja, KartaKandydata, WierszKarty } from "@/lib/types";
 
-const opcjeDecyzji: { wartosc: Decyzja; etykieta: string; wariant: "default" | "secondary" | "destructive" | "outline" }[] = [
-  { wartosc: "kolejny_etap", etykieta: "Przechodzi do kolejnego etapu", wariant: "default" },
-  { wartosc: "wstrzymany", etykieta: "Wstrzymany", wariant: "secondary" },
-  { wartosc: "odrzucony", etykieta: "Odrzucony", wariant: "destructive" },
-];
+const etykietyDecyzji: Record<string, string> = {
+  kolejny_etap: "Kolejny etap",
+  wstrzymany: "Wstrzymany",
+  odrzucony: "Odrzucony",
+  "": "Brak decyzji",
+};
 
-function Sekcja({ tytul, children }: { tytul: string; children: ReactNode }) {
+export default function BibliotekaPage() {
+  const [karty, setKarty] = useState<WierszKarty[]>([]);
+  const [wybrana, setWybrana] = useState<WierszKarty | null>(null);
+  const [szukaj, setSzukaj] = useState("");
+  const [kategoria, setKategoria] = useState("wszystkie");
+  const [filtrDecyzji, setFiltrDecyzji] = useState("wszystkie");
+  const [laduje, setLaduje] = useState(true);
+  const [blad, setBlad] = useState("");
+
+  useEffect(() => {
+    async function pobierz() {
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from("karty")
+        .select("*")
+        .order("created_at", { ascending: false });
+      if (error) setBlad(error.message);
+      else setKarty(data as WierszKarty[]);
+      setLaduje(false);
+    }
+    pobierz();
+  }, []);
+
+  const kategorie = useMemo(() => {
+    const unikalne = new Set(karty.map((k) => k.stanowisko).filter(Boolean));
+    return ["wszystkie", ...Array.from(unikalne).sort()];
+  }, [karty]);
+
+  const przefiltrowane = karty.filter((k) => {
+    if (kategoria !== "wszystkie" && k.stanowisko !== kategoria) return false;
+    if (filtrDecyzji !== "wszystkie" && k.decyzja !== filtrDecyzji) return false;
+    const fraza = szukaj.trim().toLowerCase();
+    if (fraza) {
+      return (
+        k.stanowisko.toLowerCase().includes(fraza) ||
+        k.kandydat.toLowerCase().includes(fraza) ||
+        JSON.stringify(k.karta).toLowerCase().includes(fraza)
+      );
+    }
+    return true;
+  });
+
+  async function zmienDecyzje(wiersz: WierszKarty, decyzja: Decyzja) {
+    const supabase = createClient();
+    const nowaKarta = { ...wiersz.karta, decyzja };
+    const { error } = await supabase
+      .from("karty")
+      .update({ decyzja, karta: nowaKarta })
+      .eq("id", wiersz.id);
+    if (error) {
+      setBlad(error.message);
+      return;
+    }
+    setKarty(karty.map((k) => (k.id === wiersz.id ? { ...k, decyzja, karta: nowaKarta } : k)));
+    if (wybrana?.id === wiersz.id) setWybrana({ ...wybrana, decyzja, karta: nowaKarta });
+  }
+
+  async function zapiszZmianyKarty(wiersz: WierszKarty, nowa: KartaKandydata) {
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("karty")
+      .update({ karta: nowa, decyzja: nowa.decyzja })
+      .eq("id", wiersz.id);
+    if (error) {
+      setBlad(error.message);
+      return;
+    }
+    setKarty(karty.map((k) => (k.id === wiersz.id ? { ...k, karta: nowa, decyzja: nowa.decyzja } : k)));
+    if (wybrana?.id === wiersz.id) setWybrana({ ...wybrana, karta: nowa, decyzja: nowa.decyzja });
+  }
+
+  async function usunKarte(wiersz: WierszKarty) {
+    if (!window.confirm("Na pewno usunąć tę kartę? Tej operacji nie można cofnąć.")) return;
+    const supabase = createClient();
+    const { error } = await supabase.from("karty").delete().eq("id", wiersz.id);
+    if (error) {
+      setBlad(error.message);
+      return;
+    }
+    setKarty(karty.filter((k) => k.id !== wiersz.id));
+    if (wybrana?.id === wiersz.id) setWybrana(null);
+  }
+
   return (
-    <section className="space-y-2">
-      <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">{tytul}</h3>
-      {children}
-    </section>
-  );
-}
+    <main className="mx-auto w-full max-w-3xl space-y-6 px-4 py-8">
+      <h1 className="text-2xl font-bold">Biblioteka kandydatów</h1>
 
-export function KartaKandydataView({
-  karta,
-  onZmianaDecyzji,
-  onZapisz,
-  onUsun,
-  zapisywanie = false,
-  edytowalna = false,
-  onZapiszZmiany,
-}: {
-  karta: KartaKandydata;
-  onZmianaDecyzji: (decyzja: Decyzja) => void;
-  onZapisz?: () => void;
-  onUsun?: () => void;
-  zapisywanie?: boolean;
-  edytowalna?: boolean;
-  onZapiszZmiany?: (karta: KartaKandydata) => void;
-}) {
-  const [skopiowano, setSkopiowano] = useState(false);
-  const [edycja, setEdycja] = useState(false);
-  const [draft, setDraft] = useState<KartaKandydata | null>(null);
-
-  const wyswietlana = edycja && draft ? draft : karta;
-
-  function startEdycja() {
-    setDraft(karta);
-    setEdycja(true);
-  }
-
-  function anulujEdycje() {
-    setDraft(null);
-    setEdycja(false);
-  }
-
-  function zapiszZmiany() {
-    if (draft && onZapiszZmiany) onZapiszZmiany(draft);
-    setDraft(null);
-    setEdycja(false);
-  }
-
-  async function kopiujNotatke() {
-    await navigator.clipboard.writeText(formatujNotatke(wyswietlana));
-    setSkopiowano(true);
-    window.setTimeout(() => setSkopiowano(false), 2000);
-  }
-
-  return (
-    <Card>
-      <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 space-y-0">
-        <CardTitle className="text-xl">Karta kandydata</CardTitle>
-        <div className="flex items-center gap-2">
-          {edytowalna && !edycja && (
-            <Button variant="outline" size="sm" onClick={startEdycja}>
-              Edytuj kartę
-            </Button>
-          )}
-          <Badge variant="outline">Szkic AI — do zatwierdzenia</Badge>
+      <div className="grid gap-3 sm:grid-cols-3">
+        <div className="space-y-1">
+          <Label htmlFor="szukaj">Szukaj</Label>
+          <Input
+            id="szukaj"
+            placeholder="nazwisko, stanowisko, słowo z karty…"
+            value={szukaj}
+            onChange={(e) => setSzukaj(e.target.value)}
+          />
         </div>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        <Sekcja tytul="Podsumowanie">
-          {edycja ? (
-            <Textarea
-              rows={4}
-              value={wyswietlana.podsumowanie}
-              onChange={(e) => setDraft({ ...wyswietlana, podsumowanie: e.target.value })}
-            />
-          ) : (
-            <p className="leading-relaxed">{wyswietlana.podsumowanie}</p>
-          )}
-        </Sekcja>
-
-        <Sekcja tytul="Doświadczenie i technologie">
-          {edycja ? (
-            <Textarea
-              rows={4}
-              value={wyswietlana.doswiadczenie.join("\n")}
-              onChange={(e) =>
-                setDraft({
-                  ...wyswietlana,
-                  doswiadczenie: e.target.value
-                    .split("\n")
-                    .map((s) => s.trim())
-                    .filter(Boolean),
-                })
-              }
-              placeholder="jedna pozycja na linię"
-            />
-          ) : (
-            <ul className="list-disc space-y-1 pl-5">
-              {wyswietlana.doswiadczenie.map((d) => (
-                <li key={d}>{d}</li>
-              ))}
-            </ul>
-          )}
-        </Sekcja>
-
-        <Sekcja tytul="Mocne strony">
-          <ul className="space-y-2">
-            {wyswietlana.mocne_strony.map((m) => (
-              <li key={m.opis}>
-                <p>{m.opis}</p>
-                <p className="text-sm italic text-muted-foreground">„{m.cytat}”</p>
-              </li>
+        <div className="space-y-1">
+          <Label htmlFor="kategoria">Kategoria (stanowisko)</Label>
+          <select
+            id="kategoria"
+            value={kategoria}
+            onChange={(e) => setKategoria(e.target.value)}
+            className="h-9 w-full rounded-md border bg-background px-3 text-sm"
+          >
+            {kategorie.map((k) => (
+              <option key={k} value={k}>
+                {k === "wszystkie" ? "Wszystkie" : k}
+              </option>
             ))}
-          </ul>
-        </Sekcja>
+          </select>
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="filtr-decyzji">Decyzja</Label>
+          <select
+            id="filtr-decyzji"
+            value={filtrDecyzji}
+            onChange={(e) => setFiltrDecyzji(e.target.value)}
+            className="h-9 w-full rounded-md border bg-background px-3 text-sm"
+          >
+            <option value="wszystkie">Wszystkie</option>
+            <option value="kolejny_etap">Kolejny etap</option>
+            <option value="wstrzymany">Wstrzymany</option>
+            <option value="odrzucony">Odrzucony</option>
+            <option value="">Brak decyzji</option>
+          </select>
+        </div>
+      </div>
 
-        {wyswietlana.sygnaly_ostrzegawcze.length > 0 && (
-          <Sekcja tytul="Sygnały ostrzegawcze">
-            <ul className="space-y-2">
-              {wyswietlana.sygnaly_ostrzegawcze.map((s) => (
-                <li key={s.opis}>
-                  <p>{s.opis}</p>
-                  <p className="text-sm italic text-muted-foreground">„{s.cytat}”</p>
-                </li>
-              ))}
-            </ul>
-          </Sekcja>
-        )}
+      {blad && <p className="text-sm text-destructive">{blad}</p>}
+      {laduje && <p className="text-muted-foreground">Ładowanie…</p>}
+      {!laduje && przefiltrowane.length === 0 && (
+        <p className="text-muted-foreground">Brak kart spełniających kryteria.</p>
+      )}
 
-        <Sekcja tytul="Motywacja i oczekiwania">
-          <ul className="list-disc space-y-1 pl-5">
-            <li>Pensja: {wyswietlana.motywacja.pensja}</li>
-            <li>Lokalizacja: {wyswietlana.motywacja.lokalizacja}</li>
-            {wyswietlana.motywacja.uwagi && <li>Uwagi: {wyswietlana.motywacja.uwagi}</li>}
-          </ul>
-        </Sekcja>
-
-        {wyswietlana.oceny.length > 0 && (
-          <Sekcja tytul="Oceny per kompetencja (1–5)">
-            <ul className="space-y-2">
-              {wyswietlana.oceny.map((o) => (
-                <li key={o.kompetencja}>
-                  <p>
-                    <span className="font-medium">{o.kompetencja}</span> — {o.ocena}/5
-                  </p>
-                  <p className="text-sm italic text-muted-foreground">„{o.cytat}”</p>
-                </li>
-              ))}
-            </ul>
-          </Sekcja>
-        )}
-
-        <Sekcja tytul="Pytania na kolejną rozmowę">
-          {edycja ? (
-            <Textarea
-              rows={4}
-              value={wyswietlana.pytania_followup.join("\n")}
-              onChange={(e) =>
-                setDraft({
-                  ...wyswietlana,
-                  pytania_followup: e.target.value
-                    .split("\n")
-                    .map((s) => s.trim())
-                    .filter(Boolean),
-                })
-              }
-              placeholder="jedno pytanie na linię"
-            />
-          ) : (
-            <ul className="list-disc space-y-1 pl-5">
-              {wyswietlana.pytania_followup.map((p) => (
-                <li key={p}>{p}</li>
-              ))}
-            </ul>
-          )}
-        </Sekcja>
-
-        <Separator />
-
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="font-medium">Decyzja:</span>
-          {opcjeDecyzji.map((o) => (
-            <Badge
-              key={o.wartosc}
-              variant={wyswietlana.decyzja === o.wartosc ? o.wariant : "outline"}
-              className="cursor-pointer px-3 py-1"
-              onClick={() => onZmianaDecyzji(o.wartosc)}
+      <ul className="space-y-2">
+        {przefiltrowane.map((k) => (
+          <li key={k.id}>
+            <button
+              type="button"
+              onClick={() => setWybrana(wybrana?.id === k.id ? null : k)}
+              className={`flex w-full flex-wrap items-center justify-between gap-2 rounded-lg border p-3 text-left hover:bg-muted ${
+                wybrana?.id === k.id ? "border-primary bg-muted" : ""
+              }`}
             >
-              {o.etykieta}
-            </Badge>
-          ))}
-        </div>
-
-        <div className="flex flex-wrap gap-2">
-          {edycja ? (
-            <>
-              <Button onClick={zapiszZmiany} className="w-full sm:w-auto">
-                Zapisz zmiany
-              </Button>
-              <Button variant="outline" onClick={anulujEdycje} className="w-full sm:w-auto">
-                Anuluj
-              </Button>
-            </>
-          ) : (
-            <Button onClick={kopiujNotatke} className="w-full sm:w-auto">
-              {skopiowano ? "Skopiowano do schowka!" : "Kopiuj notatkę do ATS"}
-            </Button>
-          )}
-          {onZapisz && !edycja && (
-            <Button onClick={onZapisz} disabled={zapisywanie} variant="secondary" className="w-full sm:w-auto">
-              {zapisywanie ? "Zapisywanie…" : "Zapisz do biblioteki"}
-            </Button>
-          )}
-          {onUsun && !edycja && (
-            <Button onClick={onUsun} variant="destructive" className="w-full sm:w-auto">
-              Usuń kartę
-            </Button>
-          )}
-        </div>
-      </CardContent>
-    </Card>
+              <span>
+                <span className="font-medium">{k.kandydat || "Bez nazwy"}</span>
+                <span className="text-muted-foreground"> — {k.stanowisko || "bez stanowiska"}</span>
+              </span>
+              <span className="flex items-center gap-2">
+                <Badge variant="outline">{new Date(k.created_at).toLocaleDateString("pl-PL")}</Badge>
+                <Badge
+                  variant={
+                    k.decyzja === "kolejny_etap"
+                      ? "default"
+                      : k.decyzja === "odrzucony"
+                        ? "destructive"
+                        : k.decyzja === "wstrzymany"
+                          ? "secondary"
+                          : "outline"
+                  }
+                >
+                  {etykietyDecyzji[k.decyzja] ?? "Brak decyzji"}
+                </Badge>
+              </span>
+            </button>
+            {wybrana?.id === k.id && (
+              <div className="mt-2">
+                <KartaKandydataView
+                  karta={k.karta}
+                  onZmianaDecyzji={(d) => zmienDecyzje(k, d)}
+                  onUsun={() => usunKarte(k)}
+                  edytowalna
+                  onZapiszZmiany={(nowa) => zapiszZmianyKarty(k, nowa)}
+                />
+              </div>
+            )}
+          </li>
+        ))}
+      </ul>
+    </main>
   );
 }
