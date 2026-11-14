@@ -13,4 +13,5 @@ Zasady:
 - Każde twierdzenie ma dokładny cytat z transkrypcji jako dowód.
 - Jeśli czegoś nie ma w rozmowie, zostaw puste pole lub pustą tablicę — nie wymyślaj.
 - Oceny (1-5) podawaj tylko tam, gdzie rozmowa wyraźnie na to pozwala.
+- W transkrypcji wypowiedzi są oznaczone jako REKRUTER: i KANDYDAT: (pierwszy mówca = rekruter). Cytaty przypisuj do właściwej osoby; jeśli oznaczenia wyglądają na pomylone, przypisz role po treści wypowiedzi.
 - Ton: rzeczowy, profesjonalny, po polsku.`;

@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { KartaKandydataView } from "@/components/karta-kandydata";
 import { createClient } from "@/lib/supabase/client";
-import type { Decyzja, WierszKarty } from "@/lib/types";
+import type { Decyzja, KartaKandydata, WierszKarty } from "@/lib/types";
 
 const etykietyDecyzji: Record<string, string> = {
   kolejny_etap: "Kolejny etap",
@@ -57,19 +57,18 @@ export default function BibliotekaPage() {
     return true;
   });
 
-  async function zmienDecyzje(wiersz: WierszKarty, decyzja: Decyzja) {
+  async function zapiszZmianyKarty(wiersz: WierszKarty, nowa: KartaKandydata) {
     const supabase = createClient();
-    const nowaKarta = { ...wiersz.karta, decyzja };
     const { error } = await supabase
       .from("karty")
-      .update({ decyzja, karta: nowaKarta })
+      .update({ karta: nowa, decyzja: nowa.decyzja })
       .eq("id", wiersz.id);
     if (error) {
       setBlad(error.message);
       return;
     }
-    setKarty(karty.map((k) => (k.id === wiersz.id ? { ...k, decyzja, karta: nowaKarta } : k)));
-    if (wybrana?.id === wiersz.id) setWybrana({ ...wybrana, decyzja, karta: nowaKarta });
+    setKarty(karty.map((k) => (k.id === wiersz.id ? { ...k, karta: nowa, decyzja: nowa.decyzja } : k)));
+    if (wybrana?.id === wiersz.id) setWybrana({ ...wybrana, karta: nowa, decyzja: nowa.decyzja });
   }
 
   async function usunKarte(wiersz: WierszKarty) {
@@ -141,8 +140,10 @@ export default function BibliotekaPage() {
           <li key={k.id}>
             <button
               type="button"
-              onClick={() => setWybrana(k)}
-              className="flex w-full flex-wrap items-center justify-between gap-2 rounded-lg border p-3 text-left hover:bg-muted"
+              onClick={() => setWybrana(wybrana?.id === k.id ? null : k)}
+              className={`flex w-full flex-wrap items-center justify-between gap-2 rounded-lg border p-3 text-left hover:bg-muted ${
+                wybrana?.id === k.id ? "border-primary bg-muted" : ""
+              }`}
             >
               <span>
                 <span className="font-medium">{k.kandydat || "Bez nazwy"}</span>
@@ -165,17 +166,20 @@ export default function BibliotekaPage() {
                 </Badge>
               </span>
             </button>
+                        {wybrana?.id === k.id && (
+              <div className="mt-2">
+                <KartaKandydataView
+                  karta={k.karta}
+                  onZmianaDecyzji={(d) => zmienDecyzje(k, d)}
+                  onUsun={() => usunKarte(k)}
+                  edytowalna
+                  onZapiszZmiany={(nowa) => zapiszZmianyKarty(k, nowa)}
+                />
+              </div>
+            )}
           </li>
         ))}
       </ul>
-
-      {wybrana && (
-        <KartaKandydataView
-          karta={wybrana.karta}
-          onZmianaDecyzji={(d) => zmienDecyzje(wybrana, d)}
-          onUsun={() => usunKarte(wybrana)}
-        />
-      )}
     </main>
   );
 }

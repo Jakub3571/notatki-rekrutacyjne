@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "@/lib/supabase/server";
 import { PROMPT_SYSTEM } from "@/lib/prompt";
+import { LIMIT_GENEROWAN } from "@/lib/limit";
 import type { KartaKandydata } from "@/lib/types";
 
 function wyciagnijJson(tekst: string): KartaKandydata {
@@ -28,6 +29,19 @@ export async function POST(request: Request) {
       return NextResponse.json({ blad: "Nie jesteś zalogowany" }, { status: 401 });
     }
 
+    const { data: limitRow } = await supabase
+      .from("limity")
+      .select("liczba_generacji")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    const zuzyte = limitRow?.liczba_generacji ?? 0;
+    if (zuzyte >= LIMIT_GENEROWAN) {
+      return NextResponse.json(
+        { blad: `Osiągnięto limit ${LIMIT_GENEROWAN} generowań. Skontaktuj się z administratorem, aby go podnieść.` },
+        { status: 429 }
+      );
+    }
+
     const { transkrypcja } = await request.json();
     if (typeof transkrypcja !== "string" || transkrypcja.trim().length < 50) {
       return NextResponse.json(
@@ -35,6 +49,13 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
+
+    await supabase
+      .from("limity")
+      .upsert(
+        { user_id: user.id, liczba_generacji: zuzyte + 1, updated_at: new Date().toISOString() },
+        { onConflict: "user_id" }
+      );
 
     const model = process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-6";
     const anthropic = new Anthropic();
@@ -53,7 +74,7 @@ export async function POST(request: Request) {
     }
 
     const karta = wyciagnijJson(blok.text);
-    return NextResponse.json({ karta });
+    return NextResponse.json({ karta, pozostalo: Math.max(0, LIMIT_GENEROWAN - zuzyte - 1) });
   } catch (e) {
     const komunikat = e instanceof Error ? e.message : "Nieznany błąd";
     return NextResponse.json({ blad: `Błąd podczas generowania: ${komunikat}` }, { status: 500 });
