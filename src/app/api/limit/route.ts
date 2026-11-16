@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { LIMIT_GENEROWAN } from "@/lib/limit";
+import { czyEmailDozwolony } from "@/lib/dostep";
 
 export async function GET() {
   const supabase = await createClient();
@@ -10,6 +11,10 @@ export async function GET() {
   if (!user) {
     return NextResponse.json({ blad: "Nie jesteś zalogowany" }, { status: 401 });
   }
+  if (!(await czyEmailDozwolony(supabase, user.email))) {
+    return NextResponse.json({ blad: "Ten adres e-mail nie ma dostępu do aplikacji." }, { status: 403 });
+  }
+
   const { data } = await supabase
     .from("limity")
     .select("liczba_generacji")

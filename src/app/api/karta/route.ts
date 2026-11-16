@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "@/lib/supabase/server";
+import { czyEmailDozwolony } from "@/lib/dostep";
 import { PROMPT_SYSTEM } from "@/lib/prompt";
 import { LIMIT_GENEROWAN } from "@/lib/limit";
 import type { KartaKandydata } from "@/lib/types";
+
 
 function wyciagnijJson(tekst: string): KartaKandydata {
   const oczyszczony = tekst.replace(/```json/gi, "").replace(/```/g, "").trim();
@@ -28,7 +30,9 @@ export async function POST(request: Request) {
     if (!user) {
       return NextResponse.json({ blad: "Nie jesteś zalogowany" }, { status: 401 });
     }
-
+    if (!(await czyEmailDozwolony(supabase, user.email))) {
+      return NextResponse.json({ blad: "Ten adres e-mail nie ma dostępu do aplikacji." }, { status: 403 });
+    }
     const { data: limitRow } = await supabase
       .from("limity")
       .select("liczba_generacji")

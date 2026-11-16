@@ -6,7 +6,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { createClient } from "@/lib/supabase/client";
 
 export default function LoginPage() {
-  const [blad, setBlad] = useState("");
+  const [blad, setBlad] = useState(
+    () => new URLSearchParams(window.location.search).get("blad") ?? ""
+  );
 
   async function zalogujPrzezGoogle() {
     const supabase = createClient();

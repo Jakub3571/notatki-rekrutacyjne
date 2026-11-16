@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { czyEmailDozwolony } from "@/lib/dostep";
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
@@ -30,6 +31,13 @@ export async function updateSession(request: NextRequest) {
 
     const sciezka = request.nextUrl.pathname;
     const publiczna = sciezka.startsWith("/login") || sciezka.startsWith("/auth");
+
+    if (user && !(await czyEmailDozwolony(supabase, user.email))) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/login";
+      url.searchParams.set("blad", "Ten adres e-mail nie ma dostępu do aplikacji.");
+      return NextResponse.redirect(url);
+    }
 
     if (!user && !publiczna) {
       const url = request.nextUrl.clone();

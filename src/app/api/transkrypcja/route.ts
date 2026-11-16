@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { czyEmailDozwolony } from "@/lib/dostep";
 
 function etykietaMowcy(speaker: number | null): string {
   return speaker === 0 ? "REKRUTER" : "KANDYDAT";
@@ -21,7 +22,9 @@ export async function POST(request: Request) {
     if (!user) {
       return NextResponse.json({ blad: "Nie jesteś zalogowany" }, { status: 401 });
     }
-
+    if (!(await czyEmailDozwolony(supabase, user.email))) {
+      return NextResponse.json({ blad: "Ten adres e-mail nie ma dostępu do aplikacji." }, { status: 403 });
+    }
     const formData = await request.formData();
     const plik = formData.get("plik");
     if (!(plik instanceof File)) {
